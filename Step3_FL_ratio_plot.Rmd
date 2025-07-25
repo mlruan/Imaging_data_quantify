@@ -1,0 +1,799 @@
+---
+title: "EYFP_cytoplasm_nucleus_plots"
+---
+
+This is an [R Markdown](http://rmarkdown.rstudio.com) Notebook. When you execute code within the notebook, the results appear beneath the code. 
+Try executing this chunk by clicking the *Run* button within the chunk or by placing your cursor inside it and pressing *Cmd+Shift+Enter*. 
+Add a new chunk by clicking the *Insert Chunk* button on the toolbar or by pressing *Cmd+Option+I*.
+
+#needed packages
+```{r}
+library(ggplot2)
+library(dplyr)
+library(scales) 
+library(ggrepel)
+library(ggplot2)
+library(ggrepel)
+library(scales)  # for darken()
+library(RColorBrewer)
+library(colorspace)
+```
+
+#load all the files and combine them together
+```{r}
+#load all the files and combine them together
+data_dir <- "/Volumes/lsa-kkoutmou/migratedData/Private_Folders/mlruan/First_paper/data_R_script/Fig3_imaging_IF/imaging_quantification_all_pics_excels/cellpose/CSVs"
+files <- list.files(data_dir, pattern = "_ratios.csv$", full.names = TRUE)
+files
+# Create a function to read each file and label by sample
+read_and_label <- function(filepath) {
+  df <- read.csv(filepath)
+  if (nrow(df) == 0) {
+    message("Skipping empty file: ", basename(filepath))
+    return(NULL)
+  }
+  df$Sample <- gsub("_intensity_ratios.csv", "", basename(filepath))
+  return(df)
+}
+# Re-run
+combined_data <- do.call(rbind, lapply(files, read_and_label))
+# Preview
+count <- table(combined_data$Sample)
+count_df <- as.data.frame(count)  # Convert table to data frame
+count_df <- count_df[order(-count_df$Freq), ]
+count_df 
+unique(combined_data$Sample)
+
+combined_data= combined_data[combined_data$total_intensity_cytoplasm- combined_data$total_intensity_nucleus>0,]
+combined_data <- combined_data[combined_data$area_nucleus / combined_data$area_cytoplasm < 0.2, ]
+
+combined_data$intensity_ratio_total_nuclues_to_total_cell<- combined_data$intensity_ratio
+combined_data$intensity_ratio_total_cyto_to_total_cell<- 1-combined_data$intensity_ratio
+combined_data$intensity_ratio_mean<-  combined_data$mean_intensity_cytoplasm/ combined_data$mean_intensity_nucleus
+head(combined_data)
+mean(combined_data$intensity_ratio_mean)
+combined_data2<-combined_data
+```
+
+#rename each groups
+```{r}
+#rename each groups
+# Replace "co60-1" and "co60-15" with "CoCl2"
+combined_data<-combined_data2
+combined_data$Sample[combined_data$Sample %in% c(  "ct1_0.1uM", "ct2_0.1uM", "ct3_0.1uM", 
+                                                   "ct3_0.1uM-4", "ct3_0.1uM-6", "ct3_0.1uM-7", 
+                                                   "wt1", "wt12","Ct-35-3","Ct-35-2","Ct-35-1","Ct-4","Ct-5","Ct-1"
+                                                   )] <- "Control"
+
+combined_data$Sample[combined_data$Sample %in% c(
+  "actd2", 
+  "actd444", 
+  "actd555nd2", 
+  "acts111", 
+  "acts12211"
+)] <- "ActD"
+
+
+combined_data$Sample[combined_data$Sample %in% c(
+#  "NiSO4 0.2mM 1h-1", 
+ # "NiSO4 0.2mM 1h-2",
+  "ni-1", 
+  "ni-2",
+  "ni-3",
+  "ni-5", 
+  "ni-6", 
+  "ni-7", 
+  "ni18",
+  "ni15",
+  "ni14",
+  "ni13"
+)] <- "NiSO4"
+
+
+combined_data$Sample[combined_data$Sample %in% c(
+  "hs60-1",
+  "hs60-4",
+  "hs60-5",
+  "hs-5",
+  "hs-4","hs60-1-1","hs-1","hs-2"
+)] <- "Heatshock"
+
+combined_data$Sample[combined_data$Sample %in% c(
+  "zn-1", 
+  "zn-2", 
+  "zn-4", 
+  "zn-5", 
+  "zn-6", 
+  "zn-8", 
+  "zn-9", 
+  "zn2","zn-3","zn-7","zn1","ZN2-35-2"
+)] <- "ZnSO4"
+
+combined_data$Sample[combined_data$Sample %in% c(
+  "did1-2", 
+  "did11", 
+  "did19","id1-3","id1-35-4","id1-35-10","id1-35-5","id1-35-3","id1-35-11","id1-35-9"
+)] <- "dID"
+
+combined_data$Sample[combined_data$Sample %in% c(
+  "Cd_2.5 mM-1", 
+  "Cd_2.5 mM-2","Cd_2.5 mM-3"
+)] <- "Cd_2.5mM"
+
+combined_data$Sample[combined_data$Sample %in% c(
+  "Cd_10mM_1",
+  "Cd-10mM2", 
+  "Cd_10mM3",
+  "Cd_10mM4"
+)] <- "Cd_10mM"
+
+combined_data$Sample[combined_data$Sample %in% c(
+  "Cd_5-mM-1", 
+  "Cd_5_mM_2"
+)] <- "Cd_5mM"
+
+
+combined_data$Sample[combined_data$Sample %in% c(
+  "MG-1mM-11", "MG-1mM-3","MG-1mM-2"
+)] <- "MG_1mM"
+combined_data$Sample[combined_data$Sample %in% c(
+  "NaAsO2-1mM-2", "NaAsO2-1mM-1","NaAsO2-1mM-4"
+)] <- "NaAsO2-1mM"
+
+
+#add concentration/time quan sup11
+#conc quan: Co, TB, CU, H2O2, Ni, MG, NaAso2, Cd
+
+#Co concentration
+combined_data$Sample[combined_data$Sample %in% c(
+  "CoCl1 2mM 1h-1","CoCl1 2mM 1h-2","CoCl1 2mM 1h-3"
+)] <- "CoCl2_2mM_1h"
+combined_data$Sample[combined_data$Sample %in% c(
+  "Co-4mM-1","Co-4mM-2"
+)] <- "CoCl2_4mM_1h"
+combined_data$Sample[combined_data$Sample %in% c(
+  "Co 8 mM 1","Co 8 mM 2","Co 8 mM 3"
+)] <- "Co_8mM_1h"
+
+#tert-con
+combined_data$Sample[combined_data$Sample %in% c(
+  "tert 0.5mM-1h-1","tert 0.5mM-1h-2","tert 0.5mM-1h-5","tert 0.5mM-1h-6"
+)] <- "Tert_0.5mM_60min"
+#CU-con
+combined_data$Sample[combined_data$Sample %in% c(
+  "CU_0.1mM_2h_","CU_0.1mM_2h_5-1","CU_0.1mM_2h_5-2","CU_0.1mM_2h_5-3","CU_0.1mM_2h_5-4","CU_0.1mM_2h_5-5"
+)] <- "CU_0.1mM_1h"
+combined_data$Sample[combined_data$Sample %in% c(
+  "CU-0.3mM-1h-1"
+)] <- "CU_0.3mM_1h"
+combined_data$Sample[combined_data$Sample %in% c(
+  "CU1.2mM1h-1","CU1.2mM1h-2","CU1.2mM1h-3"
+)] <- "CU_1.2mM_1h"
+combined_data$Sample[combined_data$Sample %in% c(
+  "CU2.4mM1h-5-50-1", 
+  "CU2.4mM1h-5-50-2", 
+  "CU2.4mM1h-5-50-3", 
+  "CU2.4mM1h-5-50-4",
+  "CU 2.4mM 1h-4"
+)] <- "CU-OOH_2.4mM_1h"
+
+#h2o2 conc
+combined_data$Sample[combined_data$Sample %in% c(
+  "H2O2_0.2mm-1h-1"
+)] <- "H2O2_0.2mm-1h"
+
+combined_data$Sample[combined_data$Sample %in% c(
+  "H2o2-1h-5mM-4","H2o2-1h-5mM-5"
+)] <- "H2O2_5mM_1h"
+
+#Ni conc
+combined_data$Sample[combined_data$Sample %in% c(
+  "NiSO4 2mM 1h-2","NiSO4 2mM 1h-3","NiSO4 2mM 1h"
+)] <- "NiSO4_2mM_1h"
+combined_data$Sample[combined_data$Sample %in% c(
+  "niso4 4 mm 1h-1","niso4 4 mm 1h-2","niso4 4 mm 1h-3"
+)] <- "NiSO4_4mM_1h"
+combined_data$Sample[combined_data$Sample %in% c(
+  "Niso4 8mm 1h-2","Niso4 8mm 1h-3","Niso4 8mm 1h"
+)] <- "NiSO4_8mM_1h"
+
+#Cd concentration
+combined_data$Sample[combined_data$Sample %in% c(
+  "Cd_2.5 mM-1","Cd_2.5 mM-2","NCd_2.5 mM-3"
+)] <- "Cd_2.5mM"
+combined_data$Sample[combined_data$Sample %in% c(
+  "Cd_5-mM-1","Cd_5-mM-2"
+)] <- "Cd_5mM"
+combined_data$Sample[combined_data$Sample %in% c(
+  "Cd_10mM_1","Cd_10mM2","Cd_10mM3","Cd_10mM4"
+)] <- "Cd_10mM"
+
+#MG concentration
+combined_data$Sample[combined_data$Sample %in% c(
+  "MG-2mM-1","MG-2mM-2"
+)] <- "MG-2mM"
+combined_data$Sample[combined_data$Sample %in% c(
+  "MG 4 mM -1","MG 4 mM -2"
+)] <- "MG-4mM"
+combined_data$Sample[combined_data$Sample %in% c(
+  "MG8mM-1","MG8mM-4","MG8mM-8"
+)] <- "MG-8mM"
+
+#NaAsO2 concentration
+combined_data$Sample[combined_data$Sample %in% c(
+  "NaAsO2 2 mM 1","NaAsO2 2 mM 2","NaAsO2 2 mM 3","NaAsO2 2 mM 4","NaAsO2 2 mM 5","NaAsO2 2 mM 6","NaAsO2 2 mM 7","NaAsO2 2 mM 8"
+)] <- "NaAsO2-2mM"
+
+
+#time quan:TB, CU
+#time quan:CU
+combined_data$Sample[combined_data$Sample %in% c(
+  "CU 2.4mM 15min-2", 
+  "CU 2.4mM 15min-3", 
+  "CU 2.4mM 15min-4", 
+  "CU 2.4mM 15min-1"
+  
+)] <- "CU-OOH_2.4mM_15min"
+combined_data$Sample[combined_data$Sample %in% c(
+  "CU 2.4 mM 30min-3"
+)] <- "CU-OOH_2.4mM_30min"
+combined_data$Sample[combined_data$Sample %in% c(
+  "CU2.4mM1h-5-50-1", 
+  "CU2.4mM1h-5-50-2", 
+  "CU2.4mM1h-5-50-3", 
+  "CU2.4mM1h-5-50-4",
+  "CU 2.4mM 1h-4"
+)] <- "CU-OOH_2.4mM_1h"
+combined_data$Sample[combined_data$Sample %in% c(
+  "CU 2.4 mM 2h-2"
+)] <- "CU-OOH_2.4mM_2h"
+
+#tert_time
+combined_data$Sample[combined_data$Sample %in% c(
+  "tert-1mm15min-1", 
+  "tert-1mm15min-2","tert-1mm15min-3","tert-1mm15min-4"
+)] <- "Tert_1mM_15min"
+combined_data$Sample[combined_data$Sample %in% c(
+  "tert-1mm30min-1", 
+  "tert-1mm30min-2","tert-1mm30min-5"
+)] <- "Tert_1mM_30min"
+combined_data$Sample[combined_data$Sample %in% c(
+  "tert-1mm60min-2","tert-1mm60min-3","tert-1mm60min-1"
+)] <- "Tert_1mM_60min"
+combined_data$Sample[combined_data$Sample %in% c(
+  "tert-1mm120min-2"
+)] <- "Tert_1mM_120min"
+
+
+
+combined_data$Sample <- gsub("co60-1", "CoCl2_60min", combined_data$Sample)
+combined_data$Sample <- gsub("co60-15", "CoCl2_60min", combined_data$Sample)
+combined_data$Sample <- gsub("CoCl2_60min5", "CoCl2_60min", combined_data$Sample)
+
+combined_data$Sample <- gsub("H2O2-15min-60uM-2", "H2O2-15min-60uM", combined_data$Sample)
+combined_data$Sample <- gsub("H2O2-15min-60uM-1", "H2O2-15min-60uM", combined_data$Sample)
+
+combined_data$Sample <- gsub("puromycin2-1", "Puromycin", combined_data$Sample)
+combined_data$Sample <- gsub("puromycin1-1", "Puromycin", combined_data$Sample)
+unique(combined_data$Sample)
+
+```
+
+
+```{r}
+#check the groups and their mean values
+unique(combined_data$Sample)
+count <- table(combined_data$Sample)
+count_df <- as.data.frame(count)  # Convert table to data frame
+count_df <- count_df[order(-count_df$Freq), ]
+count_df 
+
+
+list<-combined_data %>%
+  group_by(Sample) %>%
+  summarise(mean_intensity = mean(intensity_ratio_mean, na.rm = TRUE))
+list<-list %>% arrange(desc(mean_intensity))
+# Rename columns in count_df for clarity
+colnames(count_df) <- c("Sample", "Count")
+combined_summary <- left_join(list, count_df, by = "Sample")
+remove_samples <- c("emd", "ni11", "ni12", "NiSO4 0.2mM 1h-1", "NiSO4 0.2mM 1h-2","H2o2-1h-5mM-4","H2o2-1h-5mM-5","H2O2_0.2mm-1h-1","hs60-a111_smaller_size", "hs60-3","hs-3",
+                    "id1-35-8","id1-35-6","dpus7-mannual","dpus7-test","id1-6","id1-1","id1-35-2","id1-35-7","id1-5","id1-35-12","id1-35-1","id1-2","id1-7","ZN2-4","ZN2-1",
+                    "ZN2-3","Zn2-5","Ct-2","dpus72","id1-4","Ct-3","maybe_maybe_not_zn 15 1","paromomycin9","Ct-3","paromomycin5","ZN2-2","ZN2-5","CU1.2mM1h-2"
+                    
+                    )
+combined_summary <- combined_summary[!(combined_summary$Sample %in% remove_samples), ]
+combined_summary
+# Save the result as CSV
+write.csv(combined_summary, "/Volumes/lsa-kkoutmou/migratedData/Private_Folders/mlruan/First_paper/data_R_script/Fig3_imaging_IF/imaging_quantification_all_pics_excels/cellpose/CSVs2/sample_counts.csv", row.names = FALSE)
+
+
+
+```
+
+#plot function
+```{r}
+#plot function
+library(ggridges)
+combined_data$Sample <- factor(combined_data$Sample)
+variable = "intensity_ratio_mean"
+plot_density <- function(combined_data, selected_samples,m=8, n=8, variable = "intensity_ratio_mean", sample_order = NULL) {
+  # Subset data based on selected samples
+  combined_data_select <- combined_data[combined_data$Sample %in% selected_samples, ]
+  
+  # Clean the data (remove NAs and non-finite values)
+  combined_data_clean <- combined_data_select[!is.na(combined_data_select[[variable]]) & 
+                                                is.finite(combined_data_select[[variable]]), ]
+  head(combined_data_clean)
+  # Calculate mean values for each sample
+  mean_values <- combined_data_clean %>%
+    dplyr::group_by(Sample) %>%
+    dplyr::summarize(
+      mean_intensity = mean(.data[[variable]], na.rm = TRUE),
+      count = dplyr::n()
+    )
+  
+  # Calculate density values for each sample
+  density_values <- combined_data_clean %>%
+    group_by(Sample) %>%
+    do({
+      d <- density( .[[variable]])  # Using 1 - intensity_ratio_mean to calculate density
+      data.frame(x = d$x, y = d$y)         # Extract the x (positions) and y (density values)
+    })
+  
+  # Calculate mean density values for each sample
+  mean_density_values <- density_values %>%
+    group_by(Sample) %>%
+    summarize(mean_density = median(y, na.rm = TRUE))
+  
+  # Calculate maximum density values for each sample
+  max_density_values <- density_values %>%
+    group_by(Sample) %>%
+    summarize(max_density = max(y, na.rm = TRUE))
+  
+  # Generate color palette
+  samples <- unique(combined_data_select$Sample)
+  base_colors <- brewer.pal(length(samples), "Set2")
+  names(base_colors) <- samples
+  
+  # Generate darkened colors
+  dark_colors <- darken(base_colors, amount = 0.5)
+  
+  # Define custom colors
+  custom_colors <- c(
+    "Control" = "grey",       # greenish
+    "CoCl2_60min" = "darkgreen",   # orange
+    "CoCl2_2mM_1h"= "pink","CoCl2_4mM_1h"= "orange","Co_8mM_1h" = "blue",
+    "NiSO4" = "orange", "dID" = "orange",     # bluish
+    "NiSO4_2mM_1h"= "orange","NiSO4_4mM_1h" = "pink", "NiSO4_8mM_1h" = "blue",
+    "Heatshock" = "blue","Puromycin" = "blue",
+    
+    "Tert_1mM_15min"= "orange","Tert_1mM_30min"= "lightblue","Tert_1mM_60min"= "pink", "Tert_1mM_120min"= "blue", "Tert_0.5mM_60min" = "orange",
+    "CU_0.3mM_1h" = "orange","CU_1.2mM_1h" = "blue",
+    "CU-OOH_2.4mM_1h" = "pink" ,"CU-OOH_2.4mM_2h" = "blue" , "CU-OOH_2.4mM_15min" = "orange" , "CU-OOH_2.4mM_30min" = "lightblue" ,  # pinkish
+    
+     "NaAsO2-1mM" = "darkgreen", "NaAsO2-2mM"= "pink",
+    "Cd_10mM" = "orange", "Cd_2.5mM"= "pink","Cd_5mM"= "lightblue",
+    "MG_1mM" = "blue", "MG-2mM" = "orange","MG-4mM" = "pink","MG-8mM" = "lightblue",
+    "H2O2-15min-60uM"= "darkgrey",
+    "ZnSO4" = "pink" 
+    
+    )
+
+
+  
+  p1<-ggplot(combined_data_select, aes(x = get(variable), fill = Sample)) +
+    geom_density(alpha = 0.6, color = "black", size = 1.2, adjust = 1.5) +
+    theme_minimal(base_size = 14) +
+    labs(
+      title = "Density of Nucleus-to-Cytoplasm Intensity Ratio by Sample",
+      x = "Intensity Ratio (Cytoplasm / Whole cell)",
+      y = "Density"
+    ) +
+    theme(
+      plot.title = element_text(hjust = 0.5, face = "bold", size = 16),
+      axis.title = element_text(size = 25),
+      axis.text = element_text(size = 25),
+      legend.position = "none",
+      panel.grid = element_blank(),
+      plot.margin = unit(c(1, 1, 1, 1), "cm"),
+      panel.background = element_rect(fill = "white", color = "black"),
+      plot.background = element_rect(fill = "white", color = "white")
+    ) +
+    scale_fill_manual(values = custom_colors) +
+    scale_color_manual(values = custom_colors) +
+    geom_text_repel(
+      data = mean_values,
+      aes(
+        x = mean_intensity,
+        y = m,
+        label = paste(Sample, "\nMean: ", round(mean_intensity, 3), "\nCount: ", count, sep = ""),
+        color = Sample  # << matching label color to sample
+      ),
+      size = 5, box.padding = 0.5, show.legend = FALSE
+    ) +
+    geom_vline(
+      data = mean_values,
+      aes(xintercept = mean_intensity, color = Sample),
+      linetype = "dashed", size = 1.5, show.legend = FALSE
+    ) +
+    xlim(0, 1.2) +
+    ylim(0, n)
+
+library(dplyr)
+
+# Calculate means
+means <- combined_data_select %>%
+  group_by(Sample) %>%
+  summarize(mean_val = mean(intensity_ratio_mean, na.rm = TRUE)) %>%
+  arrange(mean_val)
+# Relevel Sample by ordered means
+combined_data_select$Sample <- factor(combined_data_select$Sample, levels = means$Sample)
+means$Sample <- factor(means$Sample, levels = means$Sample)
+  if (!is.null(sample_order)) {
+    combined_data_select$Sample <- factor(combined_data_select$Sample, levels = sample_order)
+  } else {
+    combined_data_select$Sample <- factor(combined_data_select$Sample)
+  }
+
+p2 <- ggplot(combined_data_select, aes(x = intensity_ratio_mean, y = Sample, fill = Sample)) +
+  geom_density_ridges(alpha = 0.6, color = "black", scale = 1.2) +
+  geom_vline(data = means, aes(xintercept = mean_val, color = Sample), linetype = "dashed", size = 0.6) +
+  theme_ridges(font_size = 13) +
+  theme(
+    axis.title.y = element_blank(),
+    legend.position = "none"
+  ) +
+  xlab("Cytoplasm–to–Total Fluorescence Ratio") +
+  xlim(0, 0.8) +    
+  geom_text_repel(
+      data = mean_values,
+      aes(
+        x = mean_intensity,
+        label = paste("Mean: ", round(mean_intensity, 2), "\nCount: ", count, sep = ""),
+        color = "black"  # << matching label color to sample
+      ),
+      size = 10, box.padding = 0.5, show.legend = FALSE
+    ) +
+  scale_fill_manual(values = custom_colors) +
+  scale_color_manual(values = custom_colors)+
+    theme(
+      plot.title = element_text(hjust = 0.5, face = "bold", size = 16),
+      axis.title = element_text(size = 25),
+      axis.text = element_text(size = 25),
+      legend.position = "none",
+      panel.grid = element_blank(),
+      plot.margin = unit(c(1, 1, 1, 1), "cm"),
+      panel.background = element_rect(fill = "white", color = "black"),
+      plot.background = element_rect(fill = "white", color = "black")
+    ) 
+
+
+return(list(p1,p2))
+
+}
+
+unique(combined_data$Sample)
+combined_data[combined_data$intensity_ratio_total_cyto_to_total_cell>=1,]
+```
+
+#run the plot for different groups
+#1. ID1
+```{r}
+selected_samples <- c("Control", "Heatshock", "dID")
+plot_density(combined_data, selected_samples,8,10,"intensity_ratio_mean")
+ggsave("/Volumes/lsa-kkoutmou/migratedData/Private_Folders/mlruan/First_paper/data_R_script/Fig3_imaging_IF/imaging_quantification_all_pics_excels/cellpose/plot2/part2_mean_dID1_hs_intensicty_ratio.png", plot = last_plot(), 
+       width = 6, height = 4, dpi = 300)
+plot_density(combined_data, selected_samples,4.5,5,"intensity_ratio_total_cyto_to_total_cell")
+ggsave("/Volumes/lsa-kkoutmou/migratedData/Private_Folders/mlruan/First_paper/data_R_script/Fig3_imaging_IF/imaging_quantification_all_pics_excels/cellpose/plot2/part2_totaldID1_hs_intensicty_ratio.png", plot = last_plot(), 
+       width = 10, height = 8, dpi = 300)
+```
+
+#2. puromycin and EYFP
+```{r}
+#figure4: ct, co, ni, zn, hs, h202
+selected_samples <- c("Control", "Puromycin")
+plot_density(combined_data, selected_samples,8,10,"intensity_ratio_mean")
+ggsave("/Volumes/lsa-kkoutmou/migratedData/Private_Folders/mlruan/First_paper/data_R_script/Fig3_imaging_IF/imaging_quantification_all_pics_excels/cellpose/plot2/part3_mean_Puromycin_intensicty_ratio.png", plot = last_plot(), 
+       width = 11, height = 4, dpi = 300)
+plot_density(combined_data, selected_samples,4.5,5,"intensity_ratio_total_cyto_to_total_cell")
+ggsave("/Volumes/lsa-kkoutmou/migratedData/Private_Folders/mlruan/First_paper/data_R_script/Fig3_imaging_IF/imaging_quantification_all_pics_excels/cellpose/plot2/part3_total_Puromycin_intensicty_ratio.png", plot = last_plot(), 
+       width = 10, height = 4, dpi = 300)
+
+
+```
+
+#3. WT, 45 C, 20 uM Co, 200 uM Ni, 60 uM H2O2 15 min, 2.4 mM CU
+```{r}
+###########################
+#adding new ros stress for new fig4
+unique(combined_data$Sample)
+#selected_samples <- c("Control", "CoCl2_60min","ZnSO4","H2O2-15min-60uM", "Heatshock", "NiSO4", "CU-OOH_2.4mM_1h")
+selected_samples <- c("Control", "CoCl2_60min", "Heatshock", "NiSO4", "CU-OOH_2.4mM_1h","Tert_1mM_30min")
+
+sample_order  <- c("Control", "CoCl2_60min", "NiSO4", "Tert_1mM_30min","CU-OOH_2.4mM_1h","Heatshock")
+sample_order<- rev(sample_order)
+
+c<-plot_density(combined_data, selected_samples,8,10,"intensity_ratio_mean", sample_order)
+c
+ggsave("/Volumes/lsa-kkoutmou/migratedData/Private_Folders/mlruan/First_paper/data_R_script/Fig3_imaging_IF/imaging_quantification_all_pics_excels/cellpose/plot2/part1_mean_CU_Co_Ni_hs_intensicty_ratio.png", plot = c[[1]], 
+       width =13, height = 6 , dpi = 300)
+ggsave("/Volumes/lsa-kkoutmou/migratedData/Private_Folders/mlruan/First_paper/data_R_script/Fig3_imaging_IF/imaging_quantification_all_pics_excels/cellpose/plot2/part1_mean_CU_Co_Ni_hs_intensicty_ratio2.png", plot = c[[2]], 
+       width =8, height = 6 , dpi = 300)
+# plot_density(combined_data, selected_samples,4.5,5,"intensity_ratio_total_cyto_to_total_cell")
+# ggsave("/Volumes/lsa-kkoutmou/migratedData/Private_Folders/mlruan/First_paper/data_R_script/Fig3_imaging_IF/imaging_quantification_all_pics_excels/cellpose/plot2/part1_total_CU_Co_Zn_Ni_hs_H2O2_intensicty_ratio.png", plot = last_plot(), 
+#        width = 10, height = 8, dpi = 300)
+
+```
+#extend20: not included groups
+```{r}
+selected_samples <- c("Control", "ZnSO4","H2O2-15min-60uM","MG_1mM","Cd_10mM","NaAsO2-1mM")
+sample_order <- c("Control", "MG_1mM", "NaAsO2-1mM","Cd_10mM", "ZnSO4","H2O2-15min-60uM")
+sample_order<- rev(sample_order)
+#"Tert_1mM_60min"
+#MG. NAasO2, Cd, Extend20
+
+#add concentration/time quan sup11
+#conc quan: Co, TB, CU, H2O2, Ni, MG, NaAso2, Cd
+#time quan:Co, TB, CU
+c<-plot_density(combined_data, selected_samples,8,10,"intensity_ratio_mean",sample_order)
+c[[1]]
+c[[2]]
+ggsave("/Volumes/lsa-kkoutmou/migratedData/Private_Folders/mlruan/First_paper/data_R_script/Fig3_imaging_IF/imaging_quantification_all_pics_excels/cellpose/plot2/not_included_intensicty_ratio.png", plot = last_plot(), 
+       width = 14, height = 7, dpi = 300)
+
+ggsave("/Volumes/lsa-kkoutmou/migratedData/Private_Folders/mlruan/First_paper/data_R_script/Fig3_imaging_IF/imaging_quantification_all_pics_excels/cellpose/plot2/not_included_intensicty_ratio.png", plot = c[[1]], width = 14, height = 7, dpi = 300)
+ggsave("/Volumes/lsa-kkoutmou/migratedData/Private_Folders/mlruan/First_paper/data_R_script/Fig3_imaging_IF/imaging_quantification_all_pics_excels/cellpose/plot2/not_included_intensicty_ratio2.png", plot = c[[2]], width = 10, height = 10, dpi = 300)
+
+
+# selected_samples <- c("Control", "CoCl2_60min", "Heatshock", "NiSO4")
+# plot_density(combined_data, selected_samples,8,10,"intensity_ratio_mean")
+# ggsave("/Volumes/lsa-kkoutmou/migratedData/Private_Folders/mlruan/First_paper/data_R_script/Fig3_imaging_IF/imaging_quantification_all_pics_excels/cellpose/plot2/part1_mean_Co_Ni_hs_intensicty_ratio.png", plot = last_plot(), 
+#        width = 10, height = 8, dpi = 300)
+```
+
+
+#tert_time
+```{r}
+
+
+selected_samples <- c("Control", "Tert_1mM_15min", "Tert_1mM_30min", "Tert_1mM_60min", "Tert_1mM_120min")
+sample_order <- c( "Control", "Tert_1mM_15min", "Tert_1mM_30min", "Tert_1mM_60min", "Tert_1mM_120min")
+sample_order<- rev(sample_order)
+# Plot
+c<-plot_density(combined_data, selected_samples, 8,10, "intensity_ratio_mean", sample_order)
+c
+
+ggsave("/Volumes/lsa-kkoutmou/migratedData/Private_Folders/mlruan/First_paper/data_R_script/Fig3_imaging_IF/imaging_quantification_all_pics_excels/cellpose/plot2/tert-mMtime1.png",plot = c[[1]], 
+       width = 10, height = 8, dpi = 300)
+ggsave("/Volumes/lsa-kkoutmou/migratedData/Private_Folders/mlruan/First_paper/data_R_script/Fig3_imaging_IF/imaging_quantification_all_pics_excels/cellpose/plot2/tert-mMtime2.png",plot = c[[2]], 
+       width = 10, height = 12, dpi = 300)
+
+
+```
+
+#tert_conc
+```{r}
+
+
+selected_samples <- c( "Tert_0.5mM_60min", "Tert_1mM_60min")
+sample_order <- c("Tert_0.5mM_60min", "Tert_1mM_60min")
+sample_order<- rev(sample_order)
+# Plot
+c<-plot_density(combined_data, selected_samples, 8,10, "intensity_ratio_mean", sample_order)
+c
+
+ggsave("/Volumes/lsa-kkoutmou/migratedData/Private_Folders/mlruan/First_paper/data_R_script/Fig3_imaging_IF/imaging_quantification_all_pics_excels/cellpose/plot2/tert-conc1.png",plot = c[[1]], 
+       width = 10, height = 8, dpi = 300)
+ggsave("/Volumes/lsa-kkoutmou/migratedData/Private_Folders/mlruan/First_paper/data_R_script/Fig3_imaging_IF/imaging_quantification_all_pics_excels/cellpose/plot2/tert-conc2.png",plot = c[[2]], 
+       width = 10, height = 4, dpi = 300)
+
+
+```
+
+#CU_time
+```{r}
+
+
+selected_samples <- c(
+                      "CU-OOH_2.4mM_1h", "CU-OOH_2.4mM_2h", "CU-OOH_2.4mM_15min", "CU-OOH_2.4mM_30min")
+sample_order <- c(
+                   "CU-OOH_2.4mM_15min", "CU-OOH_2.4mM_30min", "CU-OOH_2.4mM_1h", "CU-OOH_2.4mM_2h")
+sample_order<- rev(sample_order)
+# Plot
+c<-plot_density(combined_data, selected_samples, 8,10, "intensity_ratio_mean", sample_order)
+c
+
+ggsave("/Volumes/lsa-kkoutmou/migratedData/Private_Folders/mlruan/First_paper/data_R_script/Fig3_imaging_IF/imaging_quantification_all_pics_excels/cellpose/plot2/CU_2.4mMtime1.png",plot = c[[1]], 
+       width = 10, height = 8, dpi = 300)
+ggsave("/Volumes/lsa-kkoutmou/migratedData/Private_Folders/mlruan/First_paper/data_R_script/Fig3_imaging_IF/imaging_quantification_all_pics_excels/cellpose/plot2/CU_2.4mMtime2.png",plot = c[[2]], 
+       width = 10, height = 9, dpi = 300)
+
+
+```
+#CU_con
+```{r}
+selected_samples <- c( "CU_0.3mM_1h", "CU_1.2mM_1h","CU-OOH_2.4mM_1h")
+sample_order <- c("CU_0.3mM_1h", "CU_1.2mM_1h","CU-OOH_2.4mM_1h")
+sample_order<- rev(sample_order)
+# Plot
+c<-plot_density(combined_data, selected_samples, 8,10, "intensity_ratio_mean", sample_order)
+c
+
+ggsave("/Volumes/lsa-kkoutmou/migratedData/Private_Folders/mlruan/First_paper/data_R_script/Fig3_imaging_IF/imaging_quantification_all_pics_excels/cellpose/plot2/CU_conc1.png",plot = c[[1]], 
+       width = 10, height = 8, dpi = 300)
+ggsave("/Volumes/lsa-kkoutmou/migratedData/Private_Folders/mlruan/First_paper/data_R_script/Fig3_imaging_IF/imaging_quantification_all_pics_excels/cellpose/plot2/CU_conc2.png",plot = c[[2]], 
+       width = 10, height = 7, dpi = 300)
+
+
+```
+
+#Cd concentration
+```{r}
+selected_samples <- c("Cd_2.5mM",  "Cd_5mM","Cd_10mM")
+sample_order <- c("Cd_2.5mM",  "Cd_5mM","Cd_10mM")
+sample_order<- rev(sample_order)
+# Plot
+c<-plot_density(combined_data, selected_samples, 8,10, "intensity_ratio_mean", sample_order)
+c
+
+ggsave("/Volumes/lsa-kkoutmou/migratedData/Private_Folders/mlruan/First_paper/data_R_script/Fig3_imaging_IF/imaging_quantification_all_pics_excels/cellpose/plot2/Cd_conc1.png",plot = c[[1]], 
+       width = 10, height = 8, dpi = 300)
+ggsave("/Volumes/lsa-kkoutmou/migratedData/Private_Folders/mlruan/First_paper/data_R_script/Fig3_imaging_IF/imaging_quantification_all_pics_excels/cellpose/plot2/Cd_conc2.png",plot = c[[2]], 
+       width = 10, height = 7, dpi = 300)
+
+
+```
+#NiSO4_con
+```{r}
+selected_samples <- c("NiSO4_2mM_1h", "NiSO4_4mM_1h","NiSO4_8mM_1h")
+sample_order <-c("NiSO4_2mM_1h", "NiSO4_4mM_1h","NiSO4_8mM_1h")
+sample_order<- rev(sample_order)
+# Plot
+c<-plot_density(combined_data, selected_samples, 8,10, "intensity_ratio_mean", sample_order)
+c
+
+ggsave("/Volumes/lsa-kkoutmou/migratedData/Private_Folders/mlruan/First_paper/data_R_script/Fig3_imaging_IF/imaging_quantification_all_pics_excels/cellpose/plot2/Niso4_conc1.png",plot = c[[1]], 
+       width = 10, height = 8, dpi = 300)
+ggsave("/Volumes/lsa-kkoutmou/migratedData/Private_Folders/mlruan/First_paper/data_R_script/Fig3_imaging_IF/imaging_quantification_all_pics_excels/cellpose/plot2/Niso4_conc2.png",plot = c[[2]], 
+       width = 10, height =7, dpi = 300)
+
+
+```
+
+
+
+#MG conc
+```{r}
+selected_samples <- c("MG_1mM","MG-2mM","MG-4mM","MG-8mM")
+sample_order <-c("MG_1mM","MG-2mM","MG-4mM","MG-8mM")
+sample_order<- rev(sample_order)
+# Plot
+c<-plot_density(combined_data, selected_samples, 8,10, "intensity_ratio_mean", sample_order)
+c
+
+ggsave("/Volumes/lsa-kkoutmou/migratedData/Private_Folders/mlruan/First_paper/data_R_script/Fig3_imaging_IF/imaging_quantification_all_pics_excels/cellpose/plot2/MG_conc1.png",plot = c[[1]], 
+       width = 10, height = 8, dpi = 300)
+ggsave("/Volumes/lsa-kkoutmou/migratedData/Private_Folders/mlruan/First_paper/data_R_script/Fig3_imaging_IF/imaging_quantification_all_pics_excels/cellpose/plot2/MG_conc2.png",plot = c[[2]], 
+       width = 10, height = 8, dpi = 300)
+
+
+```
+
+#NaAsO2 Conc
+```{r}
+selected_samples <- c("NaAsO2-1mM","NaAsO2-2mM")
+sample_order <-c("NaAsO2-1mM","NaAsO2-2mM")
+sample_order<- rev(sample_order)
+# Plot
+c<-plot_density(combined_data, selected_samples, 8,10, "intensity_ratio_mean", sample_order)
+c
+
+ggsave("/Volumes/lsa-kkoutmou/migratedData/Private_Folders/mlruan/First_paper/data_R_script/Fig3_imaging_IF/imaging_quantification_all_pics_excels/cellpose/plot2/NaAsO2_conc1.png",plot = c[[1]], 
+       width = 10, height = 8, dpi = 300)
+ggsave("/Volumes/lsa-kkoutmou/migratedData/Private_Folders/mlruan/First_paper/data_R_script/Fig3_imaging_IF/imaging_quantification_all_pics_excels/cellpose/plot2/NaAsO2_conc2.png",plot = c[[2]], 
+       width = 10, height = 5, dpi = 300)
+
+
+```
+
+#h2o2_con
+```{r}
+selected_samples <- c( "H2O2_0.2mm-1h","H2O2_5mM_1h")
+sample_order <-c( "H2O2_0.2mm-1h","H2O2_5mM_1h")
+sample_order<- rev(sample_order)
+# Plot
+c<-plot_density(combined_data, selected_samples, 8,10, "intensity_ratio_mean", sample_order)
+c
+
+ggsave("/Volumes/lsa-kkoutmou/migratedData/Private_Folders/mlruan/First_paper/data_R_script/Fig3_imaging_IF/imaging_quantification_all_pics_excels/cellpose/plot2/H2O2_conc1.png",plot = c[[1]], 
+       width = 10, height = 8, dpi = 300)
+ggsave("/Volumes/lsa-kkoutmou/migratedData/Private_Folders/mlruan/First_paper/data_R_script/Fig3_imaging_IF/imaging_quantification_all_pics_excels/cellpose/plot2/H2O2_conc2.png",plot = c[[2]], 
+       width = 10, height = 12, dpi = 300)
+
+
+```
+#co concentrwation
+```{r}
+
+selected_samples <- c("CoCl2_2mM_1h", "CoCl2_4mM_1h", "Co_8mM_1h")
+sample_order <- c("CoCl2_2mM_1h", "CoCl2_4mM_1h", "Co_8mM_1h")
+sample_order<- rev(sample_order)
+# Plot
+c<-plot_density(combined_data, selected_samples, 8,10, "intensity_ratio_mean", sample_order)
+c
+
+ggsave("/Volumes/lsa-kkoutmou/migratedData/Private_Folders/mlruan/First_paper/data_R_script/Fig3_imaging_IF/imaging_quantification_all_pics_excels/cellpose/plot2/Co-con_1.png",plot = c[[1]], 
+       width = 10, height = 8, dpi = 300)
+ggsave("/Volumes/lsa-kkoutmou/migratedData/Private_Folders/mlruan/First_paper/data_R_script/Fig3_imaging_IF/imaging_quantification_all_pics_excels/cellpose/plot2/Co_con_2.png",plot = c[[2]], 
+       width = 10, height = 7, dpi = 300)
+
+
+```
+
+
+#the orignal groups
+```{r}
+selected_samples <- c("Control", "CoCl2_60min", "Heatshock", "NiSO4", "ZnSO4")
+plot_density(combined_data, selected_samples,8,10,"intensity_ratio_mean")
+ggsave("/Volumes/lsa-kkoutmou/migratedData/Private_Folders/mlruan/First_paper/data_R_script/Fig3_imaging_IF/imaging_quantification_all_pics_excels/cellpose/plot2/part1_fig4_mean_Co_Zn_Ni_hs_H2O2_intensicty_ratio.png", plot = last_plot(), 
+       width = 10, height = 8, dpi = 300)
+
+
+# selected_samples <- c("Control", "CoCl2_60min", "Heatshock", "NiSO4")
+# plot_density(combined_data, selected_samples,8,10,"intensity_ratio_mean")
+# ggsave("/Volumes/lsa-kkoutmou/migratedData/Private_Folders/mlruan/First_paper/data_R_script/Fig3_imaging_IF/imaging_quantification_all_pics_excels/cellpose/plot2/part1_mean_Co_Ni_hs_intensicty_ratio.png", plot = last_plot(), 
+#        width = 10, height = 8, dpi = 300)
+```
+
+
+```{r}
+#t test function
+# Define the function
+run_multiple_ttests <- function(data, group_pairs, variable = "intensity_ratio_mean") {
+  pvals <- c()
+  comparisons <- c()
+  
+  for (pair in group_pairs) {
+    group1 <- pair[1]
+    group2 <- pair[2]
+    ttest_data <- data[data$Sample %in% c(group1, group2), ]
+    
+    formula <- as.formula(paste(variable, "~ Sample"))
+    t_result <- t.test(formula, data = ttest_data)
+    
+    pvals <- c(pvals, t_result$p.value)
+    comparisons <- c(comparisons, paste(group1, "vs", group2))
+    
+    cat("T-test between", group1, "and", group2, "\n")
+    cat("Raw p-value:", t_result$p.value, "\n\n")
+  }
+  
+  # Apply Bonferroni correction
+  pvals_adj <- p.adjust(pvals, method = "bonferroni")
+  
+  # Return a data frame of results
+  results_df <- data.frame(
+    Comparison = comparisons,
+    Raw_p_value = pvals,
+    Bonferroni_adjusted_p = pvals_adj
+  )
+  
+  return(results_df)
+}
+group_pairs <- list(
+  c("Control", "Heatshock"),
+  c("Control", "dID"),
+  c("Control", "Puromycin"),
+  c("Control", "CoCl2_60min")
+)
+
+results <- run_multiple_ttests(combined_data, group_pairs)
+print(results)
+
+
+```
+
+When you save the notebook, an HTML file containing the code and output will be saved alongside it (click the *Preview* button or press *Cmd+Shift+K* to preview the HTML file). 
+
+The preview shows you a rendered HTML copy of the contents of the editor. Consequently, unlike *Knit*, *Preview* does not run any R code chunks. Instead, the output of the chunk when it was last run in the editor is displayed.
+
